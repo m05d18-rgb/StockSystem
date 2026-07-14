@@ -30,5 +30,5 @@ def test_visible_app_copy_uses_short_opportunity_direction():
 
     assert "短線機會雷達" in html
     assert "手動掃描短線機會" in html
-    assert '<div class="brand-mark">9.9.318</div>' in html
-    assert '<script src="./app.js?v=9.9.318"></script>' in html
+    assert '<div class="brand-mark">9.9.319</div>' in html
+    assert '<script src="./app.js?v=9.9.319"></script>' in html

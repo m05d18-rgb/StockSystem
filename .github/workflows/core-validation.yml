@@ -48,6 +48,8 @@ jobs:
         run: |
           python -m pytest `
             tests/test_ml_backend.py `
+            tests/test_pr1_model_contract.py `
+            tests/test_model_prediction_pipeline.py `
             tests/test_monster_target_label.py `
             tests/test_independent_model_signals.py `
             tests/test_intraday_market_discovery.py `

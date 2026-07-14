@@ -10,7 +10,11 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import server
-from ml_backend import DATA_POLICY_VERSION, FEATURE_NAMES, StockMLBackend
+from ml_backend import (
+    DATA_POLICY_VERSION, FEATURE_NAMES, SHORT_PROFIT_POLICY_HASH,
+    SHORT_PROFIT_TARGET_TYPE, StockMLBackend, short_profit_policy_hash,
+    short_profit_policy_spec,
+)
 
 
 class ModelPredictionPipelineTests(unittest.TestCase):
@@ -332,12 +336,19 @@ class ModelPredictionPipelineTests(unittest.TestCase):
     def test_backfill_adds_verified_training_date_without_retraining(self):
         with tempfile.TemporaryDirectory() as tmp:
             backend = self.backend(tmp)
+            threshold = 0.5
+            symbols = ["2330"]
             model = {
                 "version": "legacy-model",
                 "trained_at": "2026-07-12 09:06:32",
                 "data_policy": DATA_POLICY_VERSION,
                 "feature_names": FEATURE_NAMES,
-                "symbols": ["2330"],
+                "symbols": symbols,
+                "threshold": threshold,
+                "target_type": SHORT_PROFIT_TARGET_TYPE,
+                "target_policy_hash": SHORT_PROFIT_POLICY_HASH,
+                "policy_spec": short_profit_policy_spec(symbols, threshold),
+                "policy_hash": short_profit_policy_hash(symbols, threshold),
             }
             backend.model_path.write_bytes(pickle.dumps(model))
             backend.write_model_env(model)

@@ -1918,16 +1918,24 @@ class StockMLBackend:
             # 層UNIQUE約束才是真正的保證。建立索引前先清掉既有重複列(只留id最小
             # 的那筆)，否則若正式資料庫已經有重複資料(這個系統運作這段期間確實
             # 已經出現過)，CREATE UNIQUE INDEX會直接失敗讓整個init_db()掛掉。
-            conn.execute("""
-                DELETE FROM predictions
-                WHERE id NOT IN (
-                    SELECT MIN(id) FROM predictions
-                    GROUP BY symbol, price_date, model_version
-                )
-            """)
+            prediction_indexes = {
+                str(row[1]) for row in conn.execute("PRAGMA index_list(predictions)").fetchall()
+            }
+            if "idx_predictions_unique" not in prediction_indexes:
+                conn.execute("""
+                    DELETE FROM predictions
+                    WHERE id NOT IN (
+                        SELECT MIN(id) FROM predictions
+                        GROUP BY symbol, price_date, model_version
+                    )
+                """)
             conn.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_predictions_unique
                 ON predictions(symbol, price_date, model_version)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_predictions_signal_sync
+                ON predictions(target_type, action, price_date, symbol, created_at DESC)
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS brain_v2_snapshots (
@@ -12744,10 +12752,6 @@ class StockMLBackend:
         train_x = np.array([normalize(row["x"]) for row in train], dtype=float)
         train_y = np.array([row["y"] for row in train], dtype=int)
         train_returns = np.array([row.get("expected_return", row["future_return"]) for row in train], dtype=float)
-        validation_returns = np.array([
-            row.get("expected_return", row["future_return"])
-            for row in validation
-        ], dtype=float)
         sample_weights = np.array([
             (positive_weight if row["y"] else 1.0) * (1 + min(float(row.get("target_strength") or 0), 5) * 0.15)
             for row in train
@@ -12898,7 +12902,9 @@ class StockMLBackend:
                 predictions = [{**row, "probability": float(prob)} for row, prob in zip(validation, probabilities)]
                 # 用殘差中位數做穩健截距校正；平均殘差會被少數妖股極端報酬
                 # 拉動，實測反而使各週期 MAE 變差。
-                bias_correction = float(np.median(validation_returns - val_pred))
+                # 偏差截距只能從訓練資料估計；若拿 validation 殘差校正後又用
+                # 同一批 validation 回報指標，會讓驗證結果帶入答案而過度樂觀。
+                bias_correction = float(np.median(train_returns - train_pred))
                 output["learning_to_rank"] = {
                     "name": "Learning to Rank 排名模型",
                     "estimator": ranker,
@@ -12939,8 +12945,9 @@ class StockMLBackend:
                         )
                     # 週期報酬回歸不套分類正例權重，避免預測值被系統性往上推。
                     regressor.fit(train_x, train_target)
+                    train_predicted = regressor.predict(train_x)
                     predicted = regressor.predict(validation_x)
-                    bias_correction = float(np.median(validation_target - predicted))
+                    bias_correction = float(np.median(train_target - train_predicted))
                     calibrated_predicted = predicted + bias_correction
                     mae = float(np.mean(np.abs(calibrated_predicted - validation_target)))
                     horizon_model = {
@@ -13396,6 +13403,28 @@ class StockMLBackend:
             return None
         if model.get("data_policy") != DATA_POLICY_VERSION:
             self._model_load_error = "model data policy mismatch"
+            return None
+        if model.get("target_type") != SHORT_PROFIT_TARGET_TYPE:
+            self._model_load_error = "model target policy mismatch"
+            return None
+        if model.get("target_policy_hash") != SHORT_PROFIT_POLICY_HASH:
+            self._model_load_error = "model target policy hash mismatch"
+            return None
+        try:
+            expected_policy_spec = short_profit_policy_spec(
+                model.get("symbols"), model.get("threshold"),
+            )
+            expected_policy_hash = short_profit_policy_hash(
+                model.get("symbols"), model.get("threshold"),
+            )
+        except (TypeError, ValueError):
+            self._model_load_error = "model policy metadata invalid"
+            return None
+        if (
+            model.get("policy_hash") != expected_policy_hash
+            or model.get("policy_spec") != expected_policy_spec
+        ):
+            self._model_load_error = "model policy contract mismatch"
             return None
         self._model_cache = {"mtime": mtime, "model": model}
         return model

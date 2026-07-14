@@ -343,7 +343,7 @@ class CalibratedProbabilityTests(unittest.TestCase):
         self.assertAlmostEqual(probs["predicted_return_5d"], 0.02)
         self.assertAlmostEqual(probs["predicted_return_10d"], 0.03)
 
-    def test_short_horizon_and_rank_returns_apply_validation_bias_correction(self):
+    def test_short_horizon_and_rank_returns_apply_training_bias_correction(self):
         model = self._fake_model()
         model["extra_models"]["learning_to_rank"] = {
             "estimator": self._FakeRegressor(-0.02),
