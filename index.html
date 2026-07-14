@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>我的台股買賣助手</title>
+  <link rel="stylesheet" href="./styles.css?v=9.9.316" />
+  </head>
+  <body class="dark home-page">
+    <div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar" aria-hidden="true">
+        <div class="brand">
+          <div class="brand-mark">9.9.316</div>
+          <div>
+            <strong>我的台股買賣助手</strong>
+            <span>新手版股票系統</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="主功能">
+          <a href="#scanner" class="active">永豐存股</a>
+          <a href="#monsterRadar">妖股雷達</a>
+          <a href="./trades.html">交易複盤</a>
+          <a href="./settings.html">資料設定</a>
+        </nav>
+
+        <div class="data-card">
+          <span>資料狀態</span>
+          <strong id="dataStatus">正在載入實際股價資料</strong>
+          <p>系統會先抓實際價格與成交量，再用這些資料計算提醒與建議。</p>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-controls="appSidebar" aria-expanded="false">選單</button>
+          <div>
+            <h1>股票買賣提醒系統</h1>
+          </div>
+          <div class="toolbar">
+            <span id="appBuildStamp" class="build-stamp" title="目前載入的前端版本"></span>
+            <button id="systemHealthCheck" class="ghost-button" type="button">系統健康檢查</button>
+            <button id="forceReloadBtn" class="icon-button" type="button" title="強制重新載入最新版">🔄</button>
+            <button id="themeToggle" class="icon-button" type="button" title="切換深色模式">◐</button>
+          </div>
+        </header>
+
+        <nav class="mobile-module-tabs" aria-label="手機主功能">
+          <a href="#scanner" class="active">永豐存股</a>
+          <a href="#monsterRadar">妖股雷達</a>
+        </nav>
+
+        <!-- 大盤環境紅綠燈：放最上面,含今日即時加權指數 -->
+        <div id="marketLightBanner" class="market-light-banner hidden" hidden></div>
+
+        <section id="scanner" class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>我的永豐存股</h2>
+            </div>
+          </div>
+          <div class="portfolio-actions portfolio-actions-only">
+            <button id="syncSinopacHoldings" type="button">更新我的永豐庫存</button>
+            <label class="auto-sync-control">
+              <input id="autoSyncSinopac" type="checkbox" />
+              開盤自動更新
+            </label>
+            <label class="auto-sync-control">
+              每
+              <input id="autoSyncSeconds" type="number" min="30" max="60" step="30" value="60" />
+              秒
+            </label>
+          </div>
+          <div id="sinopacSyncStatus" class="settings-note"></div>
+          <div id="watchlist" class="watchlist"></div>
+          <section id="portfolioAlertsPanel" class="panel portfolio-alert-panel">
+            <div class="panel-head compact-head">
+              <div>
+                <h2>買賣停損提醒</h2>
+              </div>
+              <span id="portfolioAlertStatus" class="signal-badge">尚未建立</span>
+            </div>
+            <div class="portfolio-alert-actions">
+              <button id="deletePortfolioAlerts" type="button" class="danger-button">刪除選取</button>
+              <button id="buildPortfolioAlerts" type="button" class="success-button">建立提醒</button>
+              <button id="testPortfolioAlertPopup" type="button" class="test-button">測試通知</button>
+            </div>
+            <div class="portfolio-alert-controls">
+              <label>
+                <input id="portfolioAlertMonitor" type="checkbox" checked />
+                🔔 背景監控
+              </label>
+              <label>
+                <input id="notifyTakeProfit" type="checkbox" checked />
+                趨勢轉弱停利通知
+              </label>
+              <label>
+                <input id="notifyStopProfit" type="checkbox" checked />
+                停損通知（帳上獲利）
+              </label>
+              <label>
+                <input id="notifyStopLoss" type="checkbox" checked />
+                停損通知（帳上虧損）
+              </label>
+              <label title="一鍵靜音所有賣出/停損的 LINE 推播，狀態存在伺服器、任何裝置都一致；桌面通知仍會顯示。上面三個開關是各裝置各自存的類型開關。">
+                <input id="sellLineMute" type="checkbox" />
+                🔕 賣出 LINE 全域靜音（跨裝置）
+              </label>
+              <label>
+                間隔
+                <select id="portfolioAlertInterval">
+                  <option value="1">1 分鐘</option>
+                  <option value="3">3 分鐘</option>
+                  <option value="5">5 分鐘</option>
+                </select>
+              </label>
+              <span id="portfolioAlertStats">尚未建立提醒</span>
+            </div>
+            <div id="riskOverview" class="settings-note" hidden></div>
+            <div id="dividendCalendar" class="settings-note" hidden></div>
+            <div class="feature-table-wrap portfolio-alert-table-wrap">
+              <table class="portfolio-table portfolio-alert-table">
+                <thead>
+                  <tr>
+                    <th class="row-index"></th>
+                    <th>代號</th>
+                    <th>名稱</th>
+                    <th>我的持有價</th>
+                    <th>目前價</th>
+                    <th>+10% 達標里程碑</th>
+                    <th>防守參考價</th>
+                    <th>狀態</th>
+                    <th>備註</th>
+                  </tr>
+                </thead>
+                <tbody id="portfolioAlertRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="sinopacOrderPanel" class="panel sinopac-order-panel">
+            <div class="panel-head compact-head">
+              <div>
+                <h2>永豐手動下單</h2>
+              </div>
+              <span id="sinopacOrderStatus" class="signal-badge">手動送出</span>
+            </div>
+            <div class="sinopac-order-form">
+              <label>
+                買賣
+                <select id="sinopacOrderAction">
+                  <option value="BUY">買進</option>
+                  <option value="SELL">賣出</option>
+                </select>
+              </label>
+              <label>
+                <span id="sinopacOrderSymbolLabel">股票代號</span>
+                <input id="sinopacOrderSymbol" type="text" inputmode="numeric" maxlength="4" placeholder="例如 2330" />
+                <select id="sinopacOrderHolding" class="hidden" disabled></select>
+              </label>
+              <label>
+                價格類型
+                <select id="sinopacOrderPriceType">
+                  <option value="LMT">限價</option>
+                  <option value="MKT">市價</option>
+                </select>
+              </label>
+              <label>
+                價格
+                <input id="sinopacOrderPrice" type="number" min="0" step="0.05" placeholder="限價必填" />
+              </label>
+              <label>
+                單位
+                <select id="sinopacOrderLot">
+                  <option value="COMMON">整張</option>
+                  <option value="INTRADAY_ODD">零股</option>
+                </select>
+              </label>
+              <label>
+                <span id="sinopacOrderQuantityLabel">張數</span>
+                <input id="sinopacOrderQuantity" type="number" min="1" max="100" step="1" value="1" />
+              </label>
+              <label>
+                委託
+                <select id="sinopacOrderType">
+                  <option value="ROD">ROD</option>
+                  <option value="IOC">IOC</option>
+                  <option value="FOK">FOK</option>
+                </select>
+              </label>
+            </div>
+            <div class="sinopac-order-actions">
+              <button id="confirmSinopacOrderStep" type="button" class="test-button">第一步：確認內容</button>
+              <button id="placeSinopacOrder" type="button" class="danger-button" disabled>第二步：送出永豐</button>
+              <button id="acknowledgeSinopacOrderUnknown" type="button" class="hidden danger-button">我已在永豐官網確認上一筆委託狀態，解除鎖定</button>
+            </div>
+            <p class="settings-note">僅限手動下單。需先按第一步確認內容，第二步才會解鎖；模型、提醒與妖股判斷都不會自動送單。</p>
+            <div id="sinopacOrderResult" class="explanation-card"></div>
+          </section>
+        </section>
+
+        <div id="lossStreakBanner" class="loss-streak-banner hidden" hidden></div>
+        <!-- 資料新鮮度儀表板已依需求移除(後端 /api/data-freshness 監控保留) -->
+
+        <section id="monsterRadar" class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>妖股雷達</h2>
+            </div>
+            <div class="portfolio-actions portfolio-actions-only">
+              <button id="scanMonsterMarket" type="button" class="ghost-button">手動掃描短線妖股</button>
+              <span class="signal-badge">高風險觀察</span>
+            </div>
+          </div>
+          <div id="monsterScanProgress" class="scan-progress" hidden>
+            <div class="scan-progress-head">
+              <strong id="monsterScanProgressTitle">掃描準備中</strong>
+              <span id="monsterScanProgressText">0 / 0</span>
+            </div>
+            <div class="scan-progress-track">
+              <div id="monsterScanProgressBar" class="scan-progress-bar" style="width: 0%"></div>
+            </div>
+            <div id="monsterScanStages" class="scan-stage-grid">
+              <div class="scan-stage-row" data-stage="liquid">
+                <div><strong>流動性候選</strong><span>0 檔</span></div>
+                <div class="scan-progress-track"><div class="scan-progress-bar" style="width: 0%"></div></div>
+              </div>
+              <div class="scan-stage-row" data-stage="repair">
+                <div><strong>資料補齊</strong><span>0 檔</span></div>
+                <div class="scan-progress-track"><div class="scan-progress-bar" style="width: 0%"></div></div>
+              </div>
+              <div class="scan-stage-row" data-stage="quick">
+                <div><strong>快速候選</strong><span>0 檔</span></div>
+                <div class="scan-progress-track"><div class="scan-progress-bar" style="width: 0%"></div></div>
+              </div>
+              <div class="scan-stage-row" data-stage="score">
+                <div><strong>候選評分</strong><span>0 檔</span></div>
+                <div class="scan-progress-track"><div class="scan-progress-bar" style="width: 0%"></div></div>
+              </div>
+            </div>
+            <p id="monsterScanProgressDetail">正在建立全市場掃描工作</p>
+          </div>
+          <div id="themeSearchResult" hidden></div>
+          <!-- 真實成交複盤卡(realizedRadarReview)2026-07-09 已搬到獨立頁 trades.html,主頁不再顯示 -->
+          <!-- 候選複盤 / 熱門族群龍頭連動 / 今日可買清單 三個面板已依需求移除,首頁只留妖股雷達掃描清單 -->
+          <div id="monsterList" class="monster-list"></div>
+        </section>
+
+        <section id="dailyReportCard" class="panel daily-report-card">
+          <div class="dr-head"><span class="dr-title">📋 今日報告</span><span class="dr-stamp">載入中…</span></div>
+        </section>
+
+        <section class="main-grid integrated-hidden">
+          <article id="chart" class="panel chart-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">股價圖</p>
+                <h2 id="chartTitle">股價走勢</h2>
+              </div>
+              <div class="segmented" aria-label="圖層">
+                <button class="active" data-overlay="ma" type="button">均線</button>
+                <button data-overlay="boll" type="button">壓力支撐</button>
+                <button data-overlay="atr" type="button">波動</button>
+              </div>
+            </div>
+            <div id="priceChart" class="chart-canvas" aria-label="價格圖"></div>
+          </article>
+
+          <article class="panel decision-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">系統建議</p>
+                <h2>現在可以怎麼做</h2>
+              </div>
+              <span id="signalBadge" class="signal-badge">分析中</span>
+            </div>
+            <div class="score-ring" id="scoreRing">
+              <span id="scoreValue">0%</span>
+            </div>
+            <div id="decisionList" class="decision-list"></div>
+          </article>
+        </section>
+
+      </main>
+    </div>
+
+  <script src="./app.js?v=9.9.316"></script>
+  <script src="./mobile.js?v=202607112230"></script>
+  </body>
+</html>

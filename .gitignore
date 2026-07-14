@@ -1,0 +1,79 @@
+# Python/runtime cache
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.py[cod]
+
+# Local virtual environments
+.venv/
+.venv-*/
+venv/
+env/
+
+# Agent/editor local state
+.agents/
+.codex/
+.claude/
+.claude/settings.local.json
+.claude/*.lock
+
+# Local app/runtime data
+*.log
+*.out.log
+*.err.log
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db3
+*.bak
+*.backup*
+*.removed-backup-*
+daily_update_logs/
+realtime_tick_logs/
+backups/
+data_imports/
+
+# Models and generated experiment artifacts
+*.pkl
+*.pkl.*
+*.joblib
+model_env.json
+model_experiments/
+backtest_*_result.json
+backtest_*_result*.json
+radar_rule_weights.json
+large_cap_strength_cache.json
+repair_*_summary.json
+
+# Secrets and broker/API credentials
+*_api.json
+ai_api.json
+capital_api.json
+finmind_token.txt
+line_api.json
+sinopac_api.json
+*.pfx
+cloudflare/
+
+# Local machine launchers and transient health files
+launcher.log
+server_stdout.log
+server_stderr.log
+server.stdout.log
+server.stderr.log
+capital_quote_health.json
+finmind_usage.json
+line_notify_quota.json
+line_notify_failure_state.json
+realized_pnl_probe.json
+
+# Browser/test screenshots
+*.png
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.tmp

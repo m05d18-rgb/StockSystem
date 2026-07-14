@@ -1,0 +1,309 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>資料設定｜我的台股買賣助手</title>
+  <link rel="stylesheet" href="./styles.css?v=9.9.316" />
+  </head>
+  <body class="dark">
+    <div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar" aria-hidden="true">
+        <div class="brand">
+          <div class="brand-mark">9.9.316</div>
+          <div>
+            <strong>我的台股買賣助手</strong>
+            <span>資料設定</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="主功能">
+          <a href="./index.html#scanner">永豐存股</a>
+          <a href="./index.html#monsterRadar">妖股雷達</a>
+          <a href="./trades.html">交易複盤</a>
+          <a href="./settings.html" class="active">資料設定</a>
+        </nav>
+
+        <div class="data-card">
+          <span>設定頁</span>
+          <strong>資料來源與每日更新</strong>
+          <p>這裡設定資料來源、永豐 API，以及每天自動更新的狀態。</p>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-controls="appSidebar" aria-expanded="false">選單</button>
+          <div>
+            <p class="eyebrow">Settings</p>
+            <h1>資料設定</h1>
+          </div>
+          <div class="toolbar">
+            <a class="ghost-button" href="./index.html">回主頁</a>
+            <button id="themeToggle" class="icon-button" type="button" title="切換深色模式">◐</button>
+          </div>
+        </header>
+
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">FinMind 會員資料</p>
+              <h2>股價資料來源</h2>
+            </div>
+            <span id="tokenStatus" class="signal-badge">檢查中</span>
+          </div>
+          <div class="settings-grid">
+            <label>
+              FinMind Token
+              <input id="finmindTokenInput" type="password" autocomplete="off" placeholder="貼上 Sponsor token" />
+            </label>
+            <div class="ops-actions settings-actions">
+              <button id="saveFinmindToken" type="button">儲存 Token</button>
+              <button id="clearFinmindToken" type="button">清除本機 Token</button>
+              <button id="testFinmindToken" type="button">測試 FinMind</button>
+            </div>
+          </div>
+          <p class="settings-note">Token 只會存在這台電腦的專案資料夾，畫面程式不會公開你的 token。</p>
+          <div id="finmindPlanStatus" class="explanation-card finmind-plan-status"></div>
+          <div id="finmindTestResult" class="explanation-card"></div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">群益證券備援</p>
+              <h2>群益登入與即時報價測試</h2>
+            </div>
+            <span id="capitalStatus" class="signal-badge">檢查中</span>
+          </div>
+          <div class="settings-grid">
+            <label>
+              群益登入帳號
+              <input id="capitalUserIdInput" type="password" autocomplete="off" placeholder="群益登入帳號" />
+            </label>
+            <label>
+              群益登入密碼
+              <input id="capitalPasswordInput" type="password" autocomplete="off" placeholder="群益登入密碼" />
+            </label>
+            <label>
+              群益證券帳號
+              <input id="capitalAccountNoInput" type="password" autocomplete="off" placeholder="群益證券帳號" />
+            </label>
+            <div class="ops-actions settings-actions">
+              <button id="saveCapitalSettings" type="button">儲存群益設定</button>
+              <button id="clearCapitalSettings" type="button">清除群益設定</button>
+              <button id="testCapitalConnection" type="button">測試群益報價</button>
+            </div>
+          </div>
+          <p class="settings-note">這裡使用群益登入帳號、登入密碼與證券帳號，不是 API Key。群益只作市場行情備援：系統不讀取群益庫存、成交、損益、餘額或交割款，也不送出委託；通過後只補永豐缺失的市場報價與持股現價，持股數量與成本仍以永豐資料為準。</p>
+          <div id="capitalTestResult" class="explanation-card"></div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">永豐 API</p>
+              <h2>讀取我的永豐庫存</h2>
+            </div>
+            <span id="sinopacStatus" class="signal-badge">檢查中</span>
+          </div>
+          <div class="settings-grid sinopac-settings-grid">
+            <label>
+              API Key
+              <input id="sinopacApiKeyInput" type="password" autocomplete="off" placeholder="永豐 API Key" />
+            </label>
+            <label>
+              Secret Key
+              <input id="sinopacSecretKeyInput" type="password" autocomplete="off" placeholder="永豐 Secret Key" />
+            </label>
+            <label class="checkbox-row">
+              <input id="sinopacSimulationInput" type="checkbox" />
+              模擬模式
+            </label>
+            <label>
+              CA 憑證路徑
+              <input id="sinopacCaPathInput" type="text" autocomplete="off" placeholder="例如 C:\Sinopac\Sinopac.pfx" />
+            </label>
+            <label>
+              CA 密碼
+              <input id="sinopacCaPasswordInput" type="password" autocomplete="off" placeholder="正式下單才需要" />
+            </label>
+            <label>
+              身分證字號
+              <input id="sinopacPersonIdInput" type="password" autocomplete="off" placeholder="CA 所屬身分證字號" />
+            </label>
+            <div class="ops-actions settings-actions">
+              <button id="saveSinopacSettings" type="button">儲存永豐 API</button>
+              <button id="clearSinopacSettings" type="button">清除永豐 API</button>
+              <button id="testSinopacHoldings" type="button">測試讀取庫存</button>
+            </div>
+          </div>
+          <p class="settings-note">永豐 API Key/Secret 與 CA 只會存在這台電腦。下單只允許人工預覽與二次確認，不會由模型自動送單。</p>
+          <div id="sinopacHoldingsResult" class="explanation-card"></div>
+
+          <div class="sinopac-test-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">完整測試</p>
+                <h3>永豐 API 全部測試</h3>
+              </div>
+              <span id="sinopacTestStatus" class="signal-badge">尚未測試</span>
+            </div>
+            <div class="sinopac-test-actions">
+              <label>
+                測試股票
+                <input id="sinopacTestSymbolsInput" type="text" inputmode="numeric" placeholder="例如 2330,2317,2610" />
+              </label>
+              <button id="runSinopacFullTest" type="button">一鍵完整測試</button>
+            </div>
+            <p class="settings-note">會測 API 設定、CA 狀態、庫存、即時報價、下單預覽與正式送單防呆。這裡不會送出正式委託。</p>
+            <div id="sinopacFullTestResult" class="explanation-card"></div>
+          </div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">進階資金流</p>
+              <h2>主力分點、即時資金流</h2>
+            </div>
+            <span id="advancedFlowStatus" class="signal-badge">檢查中</span>
+          </div>
+          <div class="settings-grid">
+            <div class="ops-actions settings-actions">
+              <button id="refreshAdvancedFlowStatus" type="button">重新讀取狀態</button>
+              <button id="refreshHoldingAdvancedFlow" type="button">補齊持股資金流</button>
+              <button id="refreshCandidateAdvancedFlow" type="button">補齊候選股資金流</button>
+              <button id="startRealtimeFlow" type="button">啟動即時資金流</button>
+            </div>
+          </div>
+          <p class="settings-note">
+            主力分點使用券商分點日報；即時資金流使用 Shioaji tick 推估。
+            沒有正式來源就顯示無資料，不會亂補。
+          </p>
+          <div id="advancedFlowResult" class="explanation-card"></div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">AI 分析與新聞</p>
+              <h2>OpenAI / Perplexity API</h2>
+            </div>
+            <span id="aiApiStatus" class="signal-badge">檢查中</span>
+          </div>
+          <div class="settings-grid ai-settings-grid">
+            <label>
+              OpenAI API Key
+              <input id="openaiApiKeyInput" type="password" autocomplete="off" placeholder="貼上 OpenAI API Key" />
+            </label>
+            <label>
+              OpenAI 模型
+              <select id="openaiModelInput">
+                <option value="gpt-5.4-mini">gpt-5.4-mini（建議：速度/成本平衡）</option>
+                <option value="gpt-5.4-nano">gpt-5.4-nano（最低成本）</option>
+                <option value="gpt-5.4">gpt-5.4（較強分析）</option>
+                <option value="gpt-5.5">gpt-5.5（最強但較貴）</option>
+              </select>
+            </label>
+            <label>
+              Perplexity API Key
+              <input id="perplexityApiKeyInput" type="password" autocomplete="off" placeholder="貼上 Perplexity API Key" />
+            </label>
+            <label>
+              Perplexity 模型
+              <select id="perplexityModelInput">
+                <option value="sonar">sonar（建議：快速新聞摘要）</option>
+                <option value="sonar-pro">sonar-pro（較完整搜尋）</option>
+                <option value="sonar-reasoning-pro">sonar-reasoning-pro（推理型）</option>
+                <option value="sonar-deep-research">sonar-deep-research（深度研究，較慢較貴）</option>
+              </select>
+            </label>
+            <label class="checkbox-row">
+              <input id="enableAiAnalysisInput" type="checkbox" checked />
+              啟用 AI 白話分析
+            </label>
+            <label class="checkbox-row">
+              <input id="enableNewsSummaryInput" type="checkbox" checked />
+              啟用 Perplexity 新聞摘要
+            </label>
+            <div class="ops-actions settings-actions">
+              <button id="saveAiSettings" type="button">儲存 AI 設定</button>
+              <button id="clearAiSettings" type="button">清除 AI Key</button>
+              <button id="testAiSettings" type="button">測試 AI 連線</button>
+            </div>
+          </div>
+          <p class="settings-note">API Key 只存在這台電腦的專案資料夾。妖股與題材報告採按鈕產生，不會一開頁就消耗 API 額度。</p>
+                  <div id="aiTestResult" class="explanation-card"></div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">LINE 提醒</p>
+              <h2>LINE Messaging API 推播</h2>
+            </div>
+            <span id="lineApiStatus" class="signal-badge">檢查中</span>
+          </div>
+          <div class="settings-grid ai-settings-grid">
+            <label class="checkbox-row">
+              <input id="enableLineAlertsInput" type="checkbox" checked />
+              啟用 LINE 停損 / 停利提醒
+            </label>
+            <label>
+              Channel access token
+              <input id="lineChannelTokenInput" type="password" autocomplete="off" placeholder="貼上 LINE Messaging API token" />
+            </label>
+            <label>
+              User ID / Group ID
+              <input id="lineTargetIdInput" type="password" autocomplete="off" placeholder="U... 或 C... 群組 ID" />
+            </label>
+            <div class="ops-actions settings-actions">
+              <button id="saveLineSettings" type="button">儲存 LINE 設定</button>
+              <button id="clearLineSettings" type="button">清除 LINE 設定</button>
+              <button id="testLineSettings" type="button">測試 LINE 提醒</button>
+            </div>
+          </div>
+          <p class="settings-note">LINE Notify 已停止服務。這裡使用 LINE Messaging API，測試按鈕會真的送出一則 LINE 訊息。</p>
+          <div id="lineTestResult" class="explanation-card"></div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="panel-head compact-head">
+            <div>
+              <p class="eyebrow">每天自動學習</p>
+              <h2>系統記憶與每日更新</h2>
+            </div>
+            <div class="ops-actions settings-actions">
+              <button id="systemHealthCheck" type="button">系統健康檢查</button>
+              <button id="refreshMlStatus" type="button">重新讀取狀態</button>
+              <button id="runMlUpdate" type="button">現在更新一次</button>
+            </div>
+          </div>
+          <div id="systemHealthResult" class="explanation-card"></div>
+          <div id="backendUpdateResult" class="explanation-card"></div>
+          <p class="settings-note">模型只做獨立訓練、預測與紙上績效驗證，不加入妖股雷達、持股分析、買賣提醒或盤中放行。</p>
+          <div id="backendStatus" class="backend-status"></div>
+          <div class="feature-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>股票</th>
+                  <th>看好程度</th>
+                  <th>買進門檻</th>
+                  <th>動作</th>
+                  <th>結果</th>
+                </tr>
+              </thead>
+              <tbody id="backendPredictions"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+  <script src="./settings.js?v=9.9.316"></script>
+  </body>
+</html>

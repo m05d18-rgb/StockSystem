@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "我的台股買賣助手",
+  "short_name": "台股助手",
+  "description": "永豐存股與妖股雷達",
+  "lang": "zh-Hant",
+  "start_url": "/mobile-remote.html#holdings",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090d10",
+  "theme_color": "#090d10",
+  "icons": [
+    {
+      "src": "/assets/icons/stockai-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/stockai-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

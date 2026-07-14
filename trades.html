@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>交易複盤｜我的台股買賣助手</title>
+  <link rel="stylesheet" href="./styles.css?v=9.9.316" />
+  </head>
+  <body class="dark trades-page">
+    <div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar" aria-hidden="true">
+        <div class="brand">
+          <div class="brand-mark">9.9.316</div>
+          <div>
+            <strong>我的台股買賣助手</strong>
+            <span>交易複盤</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="主功能">
+          <a href="./index.html#scanner">永豐存股</a>
+          <a href="./index.html#monsterRadar">妖股雷達</a>
+          <a href="./trades.html" class="active">交易複盤</a>
+          <a href="./settings.html">資料設定</a>
+        </nav>
+
+        <div class="data-card">
+          <span>交易複盤</span>
+          <strong>模型準確率</strong>
+          <p>10 日 +10%／-7% 同口徑比較</p>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-controls="appSidebar" aria-expanded="false">選單</button>
+          <div>
+            <p class="eyebrow">Trade Review</p>
+            <h1>交易複盤</h1>
+          </div>
+          <div class="toolbar">
+            <a class="ghost-button" href="./index.html">回主頁</a>
+            <button id="themeToggle" class="icon-button" type="button" title="切換深色模式">◐</button>
+          </div>
+        </header>
+
+        <section class="panel model-accuracy-panel review-core-panel">
+          <div class="panel-head">
+            <div>
+              <h2>模型準確率</h2>
+            </div>
+          </div>
+          <div id="modelAccuracySummary" class="model-accuracy-summary" aria-live="polite">
+            <span>模型結果讀取中...</span>
+          </div>
+          <div id="modelAccuracyReview" class="realized-review model-accuracy-review">
+            <div class="rrv-note">模型準確率讀取中...</div>
+          </div>
+          <div class="radar-recall-section">
+              <h2>妖股雷達驗證</h2>
+            <div id="radarDiscoveryAccuracySummary" class="model-accuracy-summary" aria-live="polite">
+              <span>雷達結果讀取中...</span>
+            </div>
+            <div id="radarDiscoveryAccuracyReview" class="realized-review model-accuracy-review">
+              <div class="rrv-note">雷達找到率讀取中...</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+  <script src="./trades.js?v=9.9.316"></script>
+</body>
+</html>

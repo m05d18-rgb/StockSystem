@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#090d10" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="台股助手" />
+    <title>我的台股買賣助手</title>
+    <link rel="manifest" href="/site.webmanifest?v=9.9.303" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png?v=9.9.303" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png?v=9.9.303" />
+    <link rel="stylesheet" href="/mobile-remote.css?v=9.9.303" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <strong class="brand">台股助手</strong>
+        <span class="version">9.9.303</span>
+      </div>
+      <button id="refreshButton" class="refresh-button" type="button">重新整理</button>
+    </header>
+
+    <main id="mobileRemoteApp" class="app-shell">
+      <div id="connectionStatus" class="connection-status" role="status" aria-live="polite">
+        正在讀取資料
+      </div>
+
+      <div class="module-tabs" role="tablist" aria-label="手機主功能">
+        <button id="radarTab" class="module-tab" type="button" role="tab"
+          aria-selected="false" aria-controls="radarPanel" data-module="radar">妖股雷達</button>
+        <button id="holdingsTab" class="module-tab active" type="button" role="tab"
+          aria-selected="true" aria-controls="holdingsPanel" data-module="holdings">永豐存股</button>
+      </div>
+
+      <section id="holdingsPanel" class="module-panel" role="tabpanel" aria-labelledby="holdingsTab">
+        <div class="section-heading">
+          <div>
+            <h1>永豐存股</h1>
+            <p id="holdingsUpdatedAt" class="meta-line">資料讀取中</p>
+          </div>
+          <span id="holdingsCount" class="count-badge">0 檔</span>
+        </div>
+
+        <div class="summary-grid" aria-label="持股摘要">
+          <div class="summary-item summary-wide">
+            <span>持股市值</span>
+            <strong id="portfolioValue">-</strong>
+          </div>
+          <div class="summary-item">
+            <span>未實現損益</span>
+            <strong id="portfolioPnl">-</strong>
+          </div>
+          <div class="summary-item">
+            <span>報酬率</span>
+            <strong id="portfolioReturn">-</strong>
+          </div>
+          <div class="summary-item summary-wide">
+            <span>扣交割後可用</span>
+            <strong id="availableCash">-</strong>
+          </div>
+        </div>
+
+        <div id="holdingsList" class="data-list" aria-live="polite"></div>
+      </section>
+
+      <section id="radarPanel" class="module-panel" role="tabpanel" aria-labelledby="radarTab" hidden>
+        <div class="section-heading">
+          <div>
+            <h1>妖股雷達</h1>
+            <p id="radarUpdatedAt" class="meta-line">資料讀取中</p>
+          </div>
+          <span id="radarCount" class="count-badge">0 檔</span>
+        </div>
+
+        <div id="radarValidity" class="decision-banner observe" role="status"></div>
+        <div class="radar-metrics" aria-label="雷達摘要">
+          <div><span>市場狀態</span><strong id="marketRegime">-</strong></div>
+          <div><span>正式可買</span><strong id="buyableCount">0</strong></div>
+          <div><span>即時報價</span><strong id="quoteCoverage">0 / 0</strong></div>
+        </div>
+
+        <div id="radarList" class="data-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="/mobile-remote.js?v=9.9.303" defer></script>
+  </body>
+</html>

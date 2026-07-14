@@ -1,0 +1,12 @@
+{
+  "version": "official-emergency-closure-v1",
+  "entries": {
+    "2026-07-10": {
+      "isTradingDay": false,
+      "reason": "巴威颱風，臺北市 2026-07-10 全日停止上班；依證交所天然災害規則全日休市",
+      "source": "Taipei City Government / TWSE natural-disaster rule",
+      "evidenceUrl": "https://www.gov.taipei/News_Content.aspx?n=D0042A87C2F0270A&s=33D30774B91F4D36&sms=78D644F2755ACCAA",
+      "ruleUrl": "https://www.twse.com.tw/zh/clearing/suspended.html"
+    }
+  }
+}

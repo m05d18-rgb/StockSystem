@@ -1,0 +1,23 @@
+# 股票看盤系統 — Synology Container Manager「專案(Project)」用的 compose
+#
+# 放置方式:把整個專案資料夾放到 NAS(例如 /volume1/docker/stock-system),
+# 這個檔在該資料夾的 deploy/ 底下。build context 是 deploy/,volume 掛的是上一層
+# 的整包專案(程式 + stock_system.sqlite3 + model.pkl + 各 *.json 設定)。
+services:
+  stock-system:
+    build: .                     # 用同資料夾的 Dockerfile
+    image: stock-system:latest
+    container_name: stock-system
+    working_dir: /app
+    command: python server.py    # server.py 內建背景排程執行緒,跑起來=每日更新/掃描/LINE 全自動
+    volumes:
+      - ../:/app                 # 把整包專案(程式+資料+設定)掛進容器 /app;改檔/更新DB免重build
+    ports:
+      - "8008:8008"              # 從區網用 http://<NAS_IP>:8008 開
+    environment:
+      - TZ=Asia/Taipei           # 重要:排程與報告時間戳要用台北時間
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped      # 開機自動起、掛掉自動重啟(NAS 24h 常駐的重點)
+    # DS218+ 只有 2GB RAM:不要在這裡設太低的 mem_limit,否則全市場掃描/重訓會被 OOM kill。
+    # 強烈建議把 RAM 加到 6GB(加一條 4GB SODIMM)。若維持 2GB,見 DEPLOY 指南的「減負」段。
+    # mem_limit: 1500m           # 想硬性設上限再取消註解(2GB機器不建議設)
