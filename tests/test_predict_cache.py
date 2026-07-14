@@ -162,6 +162,10 @@ class PredictCacheTests(unittest.TestCase):
         with patch.object(backend, "extra_model_probabilities", return_value={
             "xgboost": 0.6, "lightgbm": 0.6, "gradient_boosting": 0.6,
             "learning_to_rank": 0.6, "isolation_forest": 0.6,
+            "rank_predicted_return": 0.02,
+            "predicted_return_3d": 0.01,
+            "predicted_return_5d": 0.02,
+            "predicted_return_10d": 0.03,
         }):
             payload = backend.predict_symbol(self.SYMBOL, save=False, repair=False)
         self.assertEqual(payload["degradedGates"], [])

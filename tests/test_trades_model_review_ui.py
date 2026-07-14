@@ -64,6 +64,6 @@ def test_radar_accuracy_uses_real_close_settlement_endpoint():
 def test_trade_review_asset_version_busts_old_browser_cache():
     html = (ROOT / "trades.html").read_text(encoding="utf-8")
 
-    assert '<div class="brand-mark">9.9.316</div>' in html
-    assert '<link rel="stylesheet" href="./styles.css?v=9.9.316" />' in html
-    assert '<script src="./trades.js?v=9.9.316"></script>' in html
+    assert '<div class="brand-mark">9.9.319</div>' in html
+    assert '<link rel="stylesheet" href="./styles.css?v=9.9.319" />' in html
+    assert '<script src="./trades.js?v=9.9.319"></script>' in html

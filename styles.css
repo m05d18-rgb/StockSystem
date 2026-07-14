@@ -545,6 +545,30 @@ svg {
   gap: 6px 14px;
 }
 
+.radar-view-mode {
+  margin-left: 2px;
+  font-size: 13px;
+}
+
+.radar-view-mode button {
+  min-height: 34px;
+}
+
+.surge-setup-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin-left: 4px;
+  padding: 2px 6px;
+  border: 1px solid rgba(202, 138, 4, 0.55);
+  border-radius: 5px;
+  color: #facc15;
+  background: rgba(202, 138, 4, 0.1);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .radar-price-cap-inline {
   display: inline-flex;
   align-items: center;
@@ -1732,7 +1756,8 @@ svg {
 
 .intraday-discovery-observe,
 .intraday-discovery-source,
-.intraday-discovery-state {
+.intraday-discovery-state,
+.intraday-discovery-decision {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -1751,13 +1776,71 @@ svg {
   background: rgba(202, 138, 4, 0.12);
 }
 
+.intraday-discovery-summary.buy {
+  border-color: rgba(34, 197, 94, 0.7);
+  color: var(--green);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.intraday-discovery-summary.none {
+  border-color: rgba(239, 68, 68, 0.55);
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.intraday-discovery-summary.closed {
+  border-color: var(--line);
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.08);
+}
+
 .intraday-discovery-table-wrap {
   max-height: 420px;
   overflow: auto;
 }
 
 .intraday-discovery-table {
-  min-width: 1080px;
+  min-width: 1280px;
+}
+
+.intraday-discovery-table td.intraday-discovery-decision-cell {
+  min-width: 230px;
+  max-width: 320px;
+  white-space: normal;
+}
+
+.intraday-discovery-decision.buy {
+  border-color: rgba(34, 197, 94, 0.7);
+  color: var(--green);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.intraday-discovery-decision.observe,
+.intraday-discovery-decision.pending {
+  border-color: rgba(202, 138, 4, 0.6);
+  color: #facc15;
+  background: rgba(202, 138, 4, 0.1);
+}
+
+.intraday-discovery-decision.blocked {
+  border-color: rgba(239, 68, 68, 0.55);
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.intraday-discovery-decision.expired {
+  border-color: var(--line);
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.intraday-discovery-decision-reason {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .intraday-discovery-table th,

@@ -100,6 +100,15 @@ class TargetPolicyConsistencyTests(unittest.TestCase):
         with patch.object(backend, "_recent_target_hit_rate", return_value=0.52):
             self.assertEqual(backend.buy_signal_threshold(), 0.50)
 
+    def test_policy_hash_changes_with_threshold_or_stock_universe(self):
+        base = ml_backend.short_profit_policy_hash(["2330", "2454"], 0.50)
+        self.assertNotEqual(
+            base, ml_backend.short_profit_policy_hash(["2330", "2454"], 0.54),
+        )
+        self.assertNotEqual(
+            base, ml_backend.short_profit_policy_hash(["2330", "2454", "2303"], 0.50),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

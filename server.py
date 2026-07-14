@@ -5954,6 +5954,9 @@ def build_intraday_market_discovery(
             "discoveryType": "existing_candidate" if code in radar_codes else "new_intraday",
             "observationOnly": True,
             "canBuy": False,
+            "buyDecision": "pending",
+            "buyDecisionLabel": "不可買",
+            "buyDecisionReason": "尚未完成兩次新鮮報價與正式規則確認",
             "isSuspended": suspended,
             "actionableAtObservation": actionable_at_observation,
             "lateDiscovery": late_discovery,
@@ -6360,6 +6363,43 @@ def apply_intraday_candidate_rules(
         )
         row["canBuy"] = bool(ready and formal_state and formal_state.get("canBuy"))
         row["observationOnly"] = not row["canBuy"]
+        hard_reasons = [
+            reason for reason in reasons
+            if reason.get("code") != "candidate_waiting_second_fresh_quote"
+        ]
+        waiting_for_quote = any(
+            reason.get("code") == "candidate_waiting_second_fresh_quote"
+            for reason in reasons
+        )
+        ordered_reasons = hard_reasons + [
+            reason for reason in reasons if reason not in hard_reasons
+        ]
+        reason_labels = []
+        for reason in ordered_reasons:
+            label = str(reason.get("label") or "").strip()
+            if label and label not in reason_labels:
+                reason_labels.append(label)
+        if row["canBuy"]:
+            row["buyDecision"] = "buy"
+            row["buyDecisionLabel"] = "可買"
+            row["buyDecisionReason"] = "正式規則與戰績門檻皆通過"
+        elif ready and formal_state and formal_state.get("shadowCanBuy"):
+            row["buyDecision"] = "observe"
+            row["buyDecisionLabel"] = "不可買"
+            row["buyDecisionReason"] = (
+                "規則通過，但正式戰績門檻尚未通過，只觀察"
+            )
+        elif waiting_for_quote and not hard_reasons:
+            row["buyDecision"] = "pending"
+            row["buyDecisionLabel"] = "不可買"
+            row["buyDecisionReason"] = "等待第 2 次不同時間的新鮮報價"
+        else:
+            row["buyDecision"] = "blocked"
+            row["buyDecisionLabel"] = "不可買"
+            row["buyDecisionReason"] = (
+                "；".join(reason_labels[:2])
+                or str(row.get("status") or "正式買進規則未通過")
+            )
         if ready and row["candidateSignal"]:
             row["status"] = (
                 "盤中新候選已通過正式規則，可買"
@@ -6367,6 +6407,21 @@ def apply_intraday_candidate_rules(
                 else "盤中新候選已通過正式規則，先做紙上驗證"
             )
     return rows
+
+
+def summarize_intraday_candidate_decisions(rows):
+    """Count final actionable decisions without trusting intermediate formal flags."""
+    rows = rows if isinstance(rows, list) else []
+    return {
+        "confirmed": sum(1 for row in rows if row.get("consecutiveConfirmed")),
+        "candidateSignals": sum(1 for row in rows if row.get("candidateSignal")),
+        "formalBuyable": sum(1 for row in rows if row.get("canBuy") is True),
+        "rulePassedObservation": sum(
+            1 for row in rows
+            if row.get("canBuy") is not True
+            and row.get("buyDecision") == "observe"
+        ),
+    }
 
 
 def merge_intraday_tick_quotes(base_quotes, tick_quotes):
@@ -8634,15 +8689,12 @@ def update_intraday_market_discovery(trigger="auto", force=False):
                         "error": str(audit_exc)[:500],
                     }
                 missing = [code for code in baseline_symbols if code not in combined_quotes]
-                confirmed_count = sum(
-                    1 for row in qualified_rows if row.get("consecutiveConfirmed")
+                decision_counts = summarize_intraday_candidate_decisions(
+                    qualified_rows
                 )
-                signal_count = sum(
-                    1 for row in qualified_rows if row.get("candidateSignal")
-                )
-                formal_buyable_count = sum(
-                    1 for row in qualified_rows if row.get("formalCanBuy")
-                )
+                confirmed_count = decision_counts["confirmed"]
+                signal_count = decision_counts["candidateSignals"]
+                formal_buyable_count = decision_counts["formalBuyable"]
                 result = {
                     "ok": True,
                     "running": False,
@@ -8687,6 +8739,9 @@ def update_intraday_market_discovery(trigger="auto", force=False):
                     "dailyDataReferenceDate": daily_reference_date,
                     "candidateSignalCount": signal_count,
                     "formalBuyableCount": formal_buyable_count,
+                    "rulePassedObservationCount": decision_counts[
+                        "rulePassedObservation"
+                    ],
                     "confirmationRows": qualified_rows,
                     "missingCount": len(missing),
                     "missingSymbols": missing[:30],

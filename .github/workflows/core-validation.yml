@@ -1,0 +1,58 @@
+name: Core validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-model.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest tzdata -r requirements-model.txt
+
+      - name: Check source syntax
+        run: |
+          node --check app.js
+          python -m py_compile ml_backend.py server.py
+
+      - name: Run core radar and model tests
+        run: |
+          python -m pytest `
+            tests/test_ml_backend.py `
+            tests/test_pr1_model_contract.py `
+            tests/test_model_prediction_pipeline.py `
+            tests/test_monster_target_label.py `
+            tests/test_independent_model_signals.py `
+            tests/test_intraday_market_discovery.py `
+            tests/test_short_opportunity_radar_ui.py `
+            tests/test_trades_model_review_ui.py `
+            -q

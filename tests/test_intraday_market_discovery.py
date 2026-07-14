@@ -268,6 +268,81 @@ class IntradayMarketDiscoveryTests(unittest.TestCase):
         self.assertTrue(second["formalShadowCanBuy"])
         self.assertFalse(second["formalCanBuy"])
         self.assertEqual(second["candidateExclusionReasons"], [])
+        self.assertEqual(second["buyDecision"], "observe")
+        self.assertEqual(second["buyDecisionLabel"], "不可買")
+        self.assertIn("戰績門檻", second["buyDecisionReason"])
+
+    def test_final_buy_decision_is_explicit_only_after_every_gate_passes(self):
+        row = {
+            "symbol": "1111",
+            "consecutiveConfirmed": True,
+            "highChangePct": 6.0,
+            "state": "active",
+            "highRetention": 0.98,
+            "currentChangePct": 6.0,
+            "turnoverMillion": 80.0,
+            "volumeProgressRatio": 1.2,
+            "minimumVolumeProgressRatio": 0.5,
+            "previousClose": 100.0,
+            "openPrice": 102.0,
+            "currentPrice": 106.0,
+            "highPrice": 106.5,
+            "lowPrice": 101.0,
+            "totalVolumeLots": 1000.0,
+            "quoteFresh": True,
+            "snapshotAt": "2026-07-14T10:30:20+08:00",
+            "inRadar": False,
+        }
+        formal_result = {
+            "canBuy": True,
+            "shadowCanBuy": False,
+            "status": "正式條件通過",
+            "candidateScore": 82.0,
+            "executionEntryPrice": 106.1,
+        }
+        with patch.object(
+            server, "compute_monster_intraday_state", return_value=formal_result,
+        ):
+            server.apply_intraday_candidate_rules(
+                [row], {"1111": {"score": 82.0}}, now_tm=self.now.timetuple(),
+            )
+
+        self.assertTrue(row["canBuy"])
+        self.assertEqual(row["buyDecision"], "buy")
+        self.assertEqual(row["buyDecisionLabel"], "可買")
+        self.assertEqual(row["candidateExclusionReasons"], [])
+
+    def test_summary_never_counts_intermediate_formal_flag_as_buyable(self):
+        counts = server.summarize_intraday_candidate_decisions([
+            {
+                "consecutiveConfirmed": True,
+                "candidateSignal": True,
+                "formalCanBuy": True,
+                "formalShadowCanBuy": False,
+                "canBuy": False,
+                "buyDecision": "blocked",
+            },
+            {
+                "consecutiveConfirmed": True,
+                "candidateSignal": True,
+                "formalCanBuy": False,
+                "formalShadowCanBuy": True,
+                "canBuy": False,
+                "buyDecision": "observe",
+            },
+            {
+                "consecutiveConfirmed": True,
+                "candidateSignal": True,
+                "formalCanBuy": True,
+                "canBuy": True,
+                "buyDecision": "buy",
+            },
+        ])
+
+        self.assertEqual(counts["confirmed"], 3)
+        self.assertEqual(counts["candidateSignals"], 3)
+        self.assertEqual(counts["formalBuyable"], 1)
+        self.assertEqual(counts["rulePassedObservation"], 1)
 
     def test_formal_context_limit_rotates_uncached_candidates(self):
         original_cache = dict(server.intraday_discovery_formal_context_cache)
@@ -820,6 +895,16 @@ class IntradayDiscoveryDesktopUiTests(unittest.TestCase):
 
         self.assertIn("盤中全市場新強勢", helper)
         self.assertIn("盤中新候選", helper)
+        self.assertIn("<th>買進判定</th>", helper)
+        self.assertIn("intraday-discovery-decision-cell", helper)
+        decision_helper = source.split(
+            "function intradayDiscoveryBuyDecision", 1,
+        )[1].split("function intradayMarketDiscoveryHtml", 1)[0]
+        self.assertIn('label: "可買"', decision_helper)
+        self.assertIn('label: "不可買"', decision_helper)
+        self.assertIn("row.canBuy === true", decision_helper)
+        self.assertIn("candidateExclusionReasons", decision_helper)
+        self.assertIn("目前非盤中", decision_helper)
         self.assertNotIn("data-order-fill", helper)
         self.assertIn(
             "const desktopDiscoveryHtml = !isMobileRadarView", source,
