@@ -3522,20 +3522,9 @@ function isStrengtheningCandidate(item) {
 }
 
 function isShortMonsterCandidate(item) {
-  const score = Number(item.score || 0);
-  const change1 = Number(item.change1 ?? item.change_1 ?? 0);
-  const change5 = Number(item.change5 ?? item.change_5 ?? 0);
-  const volumeRatio = Number(item.volume_ratio ?? item.volumeRatio ?? 0);
-  const liquidityOk = item.liquidityOk == null && item.liquidity_ok == null ? true : Boolean(item.liquidityOk ?? item.liquidity_ok);
-  return Boolean(
-    item.buyAllowed ||
-    item.buy_allowed ||
-    item.surge_setup ||
-    item.surgeSetup ||
-    (liquidityOk && score >= 45) ||
-    (liquidityOk && score >= 38 && change5 >= 2 && volumeRatio >= 1.2) ||
-    (liquidityOk && change1 >= 2.5 && volumeRatio >= 1.5)
-  );
+  // 雷達畫面只顯示真正形成完整妖股型態的列；高分、漲幅、量能只作排序與說明，
+  // 不再單獨把一般強勢候選放進「妖股」表格。
+  return Boolean(item.surge_setup || item.surgeSetup);
 }
 
 function scanSummaryCards(items, options = {}) {
@@ -3546,7 +3535,7 @@ function scanSummaryCards(items, options = {}) {
   const buyCount = Number(options.buyCount ?? 0);
   const cards = [
     ["掃描檔數", scannedCount, "系統有納入檢查的股票"],
-    ["短線妖股候選", strengtheningCount, "分數、漲幅、量能或異常啟動符合短線條件"],
+    ["完整妖股型態", strengtheningCount, "必須符合 surgeSetup 才會列入下方表格"],
     ["目前顯示", watchCount, "下方表格實際列出的前段名單"],
     ["真正可買檔數", buyCount, "盤中確認通過才可買"]
   ];
@@ -4894,7 +4883,7 @@ function renderMonsterRadar() {
   // 的清楚訊息(避免看起來像壞掉)——觀察檔數與掃描統計仍在上方摘要卡看得到。
   const isMobileRadarView = window.matchMedia("(max-width: 720px)").matches;
   const deploymentReadiness = monsterBackendState.payload?.deploymentReadiness || {};
-  const radarListTitle = isMobileRadarView ? "短線買進觀察名單" : "短線強勢觀察名單";
+  const radarListTitle = isMobileRadarView ? "妖股買進觀察名單" : "完整妖股型態名單";
   const radarDecisionColumnTitle = isMobileRadarView ? "能不能買" : "盤中狀態";
   const desktopReadinessHtml = !isMobileRadarView && deploymentReadiness.formalReady !== true
     ? `<div class="alert-message radar-aux radar-observation-banner">
@@ -4909,7 +4898,7 @@ function renderMonsterRadar() {
   const observeOnlyCount = visibleRows.length - buyableRows.length;
   // 手機版:優先顯示「可買」前10檔;有可買時絕不混入觀察(維持既有偏好)。
   // 但 0 檔可買時,退而顯示「觀察中」前10檔——否則整片空白,使用者反映「名單沒出來」。
-  // 桌面版一律顯示完整名單(含觀察中),不隱藏。
+  // 桌面版一律顯示完整 surgeSetup 名單(含觀察中),不隱藏。
   const mobileShowsObservingFallback = isMobileRadarView && buyableRows.length === 0 && visibleRows.length > 0;
   const rowsForDisplay = isMobileRadarView
     ? (buyableRows.length ? buyableRows.slice(0, 10) : visibleRows.slice(0, 10))
@@ -4939,12 +4928,12 @@ function renderMonsterRadar() {
   const sourceText = usingBackend
     ? `後端快速掃描：${monsterBackendState.payload?.scanDate || "最新"}，全市場 ${fmt(monsterBackendState.payload?.universeTotal || 0, 0)} 檔 → 流動性候選 ${fmt(monsterBackendState.payload?.liquidUniverse || monsterBackendState.payload?.scanned || 0, 0)} 檔 → 快速候選 ${fmt(monsterBackendState.payload?.quickCandidates || 0, 0)} 檔 → 純規則評分 ${fmt(monsterBackendState.payload?.scoredCandidates ?? 0, 0)} 檔；模型獨立運行，不進候選`
     : hasBackendScan
-      ? `後端全市場掃描：${monsterBackendState.payload?.scanDate || "最新"}，目前沒有短線妖股候選`
+      ? `後端全市場掃描：${monsterBackendState.payload?.scanDate || "最新"}，目前沒有符合 surgeSetup 的完整妖股型態`
     : monsterBackendState.loading && !monsterBackendState.payload
       ? "正在讀取後端全市場掃描結果..."
       : monsterBackendState.error
         ? `後端掃描結果讀取失敗：${monsterBackendState.error}`
-        : "目前沒有短線妖股候選。需要準備短線按「手動掃描短線妖股」。";
+        : "目前沒有符合 surgeSetup 的完整妖股型態。需要準備短線按「手動掃描短線妖股」。";
   const hotSectors = monsterBackendState.payload?.hotSectors || [];
   const marketRegime = monsterBackendState.payload?.marketRegime || {};
   const themeSnapshot = monsterBackendState.payload?.themeSnapshot || {};
@@ -5062,7 +5051,7 @@ function renderMonsterRadar() {
       </div>
       <p class="section-note radar-live-status">${intradayText}</p>
       <p class="section-note">妖股流程：09:05 初篩，09:15 看量能，09:30-10:00 初次確認，10:00-13:15 只看低接/V轉，13:15 後不再進場。目前階段：${taiwanBuyFlowStage().label}。</p>
-      <p class="section-note">排序方式：全市場先用資料庫 SQL 篩出流動性候選，再用成交金額、量能放大、強於大盤、逆勢創高建立快速候選，最後依真實日線的型態量能分數排序。模型獨立運行，不加入妖股候選、排序或買賣；未通過真實盤中報價確認前只列觀察。</p>
+      <p class="section-note">排序方式：全市場先用資料庫 SQL 篩出流動性候選，再用成交金額、量能放大、強於大盤、逆勢創高建立快速候選，最後只顯示已形成 surgeSetup 的完整妖股型態。模型獨立運行，不加入妖股候選、排序或買賣；未通過真實盤中報價確認前只列觀察。</p>
     `
     : `${summaryHtml}
       ${desktopReadinessHtml}
