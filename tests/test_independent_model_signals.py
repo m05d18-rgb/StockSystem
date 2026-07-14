@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ml_backend import backend
+from ml_backend import SHORT_PROFIT_TARGET_TYPE, backend
 
 
 class IndependentModelSignalTests(unittest.TestCase):
@@ -29,21 +29,22 @@ class IndependentModelSignalTests(unittest.TestCase):
                 conn.execute("""
                     INSERT INTO predictions (
                         created_at, symbol, price_date, model_version, probability,
-                        threshold, action, target_horizon, target_return, close
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        threshold, action, target_horizon, target_return, target_type, close
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     f"{self.PRICE_DATE} 15:10:{index:02d}", symbol, self.PRICE_DATE,
                     self.MODEL_VERSION, 0.90 - index * 0.01, 0.55,
-                    "BUY_CANDIDATE", 10, 0.10, 100 + index,
+                    "BUY_CANDIDATE", 10, 0.0, SHORT_PROFIT_TARGET_TYPE, 100 + index,
                 ))
             conn.execute("""
                 INSERT INTO predictions (
                     created_at, symbol, price_date, model_version, probability,
-                    threshold, action, target_horizon, target_return, close
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    threshold, action, target_horizon, target_return, target_type, close
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 f"{self.PRICE_DATE} 15:11:00", "ZWAIT", self.PRICE_DATE,
-                self.MODEL_VERSION, 0.99, 0.55, "WAIT", 10, 0.10, 100,
+                self.MODEL_VERSION, 0.99, 0.55, "WAIT", 10, 0.0,
+                SHORT_PROFIT_TARGET_TYPE, 100,
             ))
 
     def tearDown(self):
@@ -72,7 +73,7 @@ class IndependentModelSignalTests(unittest.TestCase):
                 ORDER BY score DESC
             """, (self.PRICE_DATE,)).fetchall()
         self.assertEqual(len(rows), 20)
-        self.assertTrue(all(row[1] == "model_ensemble_10d" for row in rows))
+        self.assertTrue(all(row[1] == "model_short_profit_3_5_10d" for row in rows))
         self.assertTrue(all(row[2] == "BUY_CANDIDATE" for row in rows))
         self.assertTrue(all("不使用妖股候選" in row[4] for row in rows))
         self.assertNotIn("ZWAIT", {row[0] for row in rows})

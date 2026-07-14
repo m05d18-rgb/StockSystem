@@ -3522,21 +3522,27 @@ function isStrengtheningCandidate(item) {
 }
 
 function isShortMonsterCandidate(item) {
-  // 雷達畫面只顯示真正形成完整妖股型態的列；高分、漲幅、量能只作排序與說明，
-  // 不再單獨把一般強勢候選放進「妖股」表格。
   return Boolean(item.surge_setup || item.surgeSetup);
+}
+
+function isShortOpportunityCandidate(item) {
+  // 短線機會可包含尚未形成 surgeSetup 的強勢候選，但先排除後端已判定
+  // 過熱或高風險否決的標的，避免「機會」名單反而鼓勵追高。
+  return isStrengtheningCandidate(item)
+    && !Boolean(item.overheated)
+    && !Boolean(item.risk_vetoed ?? item.riskVetoed);
 }
 
 function scanSummaryCards(items, options = {}) {
   const rows = Array.isArray(items) ? items : [];
   const scannedCount = Number(options.scannedCount ?? rows.length);
-  const strengtheningCount = Number(options.strengtheningCount ?? rows.filter(isShortMonsterCandidate).length);
-  const watchCount = Number(options.watchCount ?? rows.filter((item) => Boolean(item.buyAllowed ?? item.buy_allowed)).length);
+  const opportunityCount = Number(options.opportunityCount ?? rows.filter(isShortOpportunityCandidate).length);
+  const surgeCount = Number(options.surgeCount ?? rows.filter(isShortMonsterCandidate).length);
   const buyCount = Number(options.buyCount ?? 0);
   const cards = [
     ["掃描檔數", scannedCount, "系統有納入檢查的股票"],
-    ["完整妖股型態", strengtheningCount, "必須符合 surgeSetup 才會列入下方表格"],
-    ["目前顯示", watchCount, "下方表格實際列出的前段名單"],
+    ["短線機會", opportunityCount, "強勢且未被過熱或風險規則否決"],
+    ["妖股型態", surgeCount, "其中已形成 surgeSetup 的股票"],
     ["真正可買檔數", buyCount, "盤中確認通過才可買"]
   ];
   return `
@@ -3552,7 +3558,7 @@ function scanSummaryCards(items, options = {}) {
   `;
 }
 
-function backendMonsterCandidates() {
+function backendMonsterCandidates(viewMode = "opportunity") {
   const rows = monsterBackendState.payload?.candidates || [];
   const portfolioCodes = new Set(readPortfolioCodes());
   return rows.map((item) => {
@@ -3639,7 +3645,7 @@ function backendMonsterCandidates() {
       tenure: item.tenure || null
     };
   })
-    .filter(isShortMonsterCandidate)
+    .filter(viewMode === "surge" ? isShortMonsterCandidate : isShortOpportunityCandidate)
     .sort(sortMonsterCandidates);
 }
 
@@ -4378,7 +4384,7 @@ async function pollMonsterScanStatus() {
       const button = document.getElementById("scanMonsterMarket");
       if (button) {
         button.disabled = false;
-        button.textContent = "手動掃描短線妖股";
+        button.textContent = "手動掃描短線機會";
       }
       monsterScanSeenFinishedAt = String(status.finishedAt || "");
       await loadMonsterScores();
@@ -4391,7 +4397,7 @@ async function pollMonsterScanStatus() {
   } catch (error) {
     // 後端忙碌(例如重訓中)時，這支 1 秒輪詢很容易單次逾時/連線失敗，但
     // 掃描本身通常還在背景繼續跑。舊版一失敗就立刻 stopMonsterScanPolling
-    // 並把按鈕解鎖成「手動掃描短線妖股」，使用者會誤以為掃描已經停止或
+    // 並把按鈕解鎖成「手動掃描短線機會」，使用者會誤以為掃描已經停止或
     // 失敗，甚至因此重按造成併發衝突；錯誤字樣也只有下一輪成功才會被蓋掉。
     // 改成累計連續失敗次數，未達門檻前只靜默重試(輪詢繼續、按鈕與狀態
     // 維持原樣)，真的連續多次讀不到才視為掃描失聯、停止輪詢並提示使用者。
@@ -4402,7 +4408,7 @@ async function pollMonsterScanStatus() {
     const button = document.getElementById("scanMonsterMarket");
     if (button) {
       button.disabled = false;
-      button.textContent = "手動掃描短線妖股";
+      button.textContent = "手動掃描短線機會";
     }
     renderMonsterRadar();
   }
@@ -4478,7 +4484,7 @@ async function runMonsterMarketScan() {
     renderMonsterScanProgress({ running: false, phase: "掃描失敗", message: friendlyError(error) });
     if (button) {
       button.disabled = false;
-      button.textContent = "手動掃描短線妖股";
+      button.textContent = "手動掃描短線機會";
     }
     renderMonsterRadar();
     return;
@@ -4724,10 +4730,84 @@ function monsterRiskBadges(item) {
 
 // 記住上次真正寫進 DOM 的妖股名單 HTML:內容沒變就不重繪,保住使用者的捲動位置。
 let lastMonsterListHtml = "";
+const RADAR_VIEW_MODE_STORAGE_KEY = "stock-vibe-radar-view-mode-v1";
 
-function intradayMarketDiscoveryHtml(discovery) {
+function readRadarViewMode() {
+  return safeGetItem(RADAR_VIEW_MODE_STORAGE_KEY, "opportunity") === "surge"
+    ? "surge"
+    : "opportunity";
+}
+
+function radarViewModeControlHtml(activeMode) {
+  return `
+    <span class="segmented radar-view-mode" aria-label="雷達名單類型">
+      <button type="button" data-radar-view-mode="opportunity" class="${activeMode === "opportunity" ? "active" : ""}">短線機會</button>
+      <button type="button" data-radar-view-mode="surge" class="${activeMode === "surge" ? "active" : ""}">妖股型態</button>
+    </span>`;
+}
+
+function intradayDiscoveryBuyDecision(item, marketActive) {
+  const row = item && typeof item === "object" ? item : {};
+  const exclusions = Array.isArray(row.candidateExclusionReasons)
+    ? row.candidateExclusionReasons
+        .map((reason) => String(reason?.label || reason?.reason || reason || "").trim())
+        .filter(Boolean)
+    : [];
+  const stage = String(row.buyDecision || "").trim();
+  const fallbackReason = String(
+    row.buyDecisionReason ||
+    exclusions.slice(0, 2).join("；") ||
+    row.formalGateStatus ||
+    row.confirmationLabel ||
+    row.status ||
+    "尚未通過正式買進規則"
+  ).trim();
+  if (!marketActive) {
+    return {
+      key: "expired",
+      label: "不可買",
+      reason: row.canBuy === true
+        ? "上次盤中曾符合；目前非盤中，需重新確認"
+        : `目前非盤中；${fallbackReason}`,
+      priority: 4,
+    };
+  }
+  if (row.canBuy === true) {
+    return {
+      key: "buy",
+      label: "可買",
+      reason: fallbackReason || "正式規則與戰績門檻皆通過",
+      priority: 0,
+    };
+  }
+  if (stage === "observe" || (row.formalShadowCanBuy === true && exclusions.length === 0)) {
+    return {
+      key: "observe",
+      label: "不可買",
+      reason: fallbackReason || "規則通過，但正式戰績門檻尚未通過，只觀察",
+      priority: 1,
+    };
+  }
+  if (stage === "pending" || row.candidateStage === "waiting_confirmation") {
+    return {
+      key: "pending",
+      label: "不可買",
+      reason: fallbackReason || "等待第 2 次不同時間的新鮮報價",
+      priority: 2,
+    };
+  }
+  return {
+    key: "blocked",
+    label: "不可買",
+    reason: fallbackReason,
+    priority: 3,
+  };
+}
+
+function intradayMarketDiscoveryHtml(discovery, options = {}) {
   const state = discovery && typeof discovery === "object" ? discovery : {};
   const leaders = Array.isArray(state.leaders) ? state.leaders : [];
+  const marketActive = options.marketActive === true;
   const checkedAt = String(state.checkedAt || "").trim();
   const requested = Number(state.requested ?? state.baselineCount ?? 0);
   const fresh = Number(state.fresh ?? 0);
@@ -4735,6 +4815,8 @@ function intradayMarketDiscoveryHtml(discovery) {
   const confirmed = Number(state?.deepConfirmation?.confirmed ?? 0);
   const candidateSignals = Number(state.candidateSignalCount ?? 0);
   const formalBuyable = Number(state.formalBuyableCount ?? 0);
+  const rulePassedObservation = Number(state.rulePassedObservationCount ?? 0);
+  const currentFormalBuyable = marketActive ? formalBuyable : 0;
   const coverage = requested > 0 ? `${fresh}/${requested}` : "尚未掃描";
   const statusText = state.running
     ? "正在掃描完整流動性股票池"
@@ -4743,8 +4825,18 @@ function intradayMarketDiscoveryHtml(discovery) {
       : state.skipped === "outside_market_session"
         ? "目前非盤中時段"
         : checkedAt
-          ? `最近更新 ${checkedAt}`
+          ? marketActive ? `最近更新 ${checkedAt}` : `盤中已結束｜最後更新 ${checkedAt}`
           : "等待下一次盤中掃描";
+  const summaryLabel = !marketActive
+    ? "非盤中｜不可買"
+    : currentFormalBuyable > 0
+      ? `可買 ${fmt(currentFormalBuyable, 0)} 檔`
+      : rulePassedObservation > 0
+        ? `規則通過 ${fmt(rulePassedObservation, 0)} 檔｜不可買`
+        : "目前無可買";
+  const summaryTone = !marketActive
+    ? "closed"
+    : currentFormalBuyable > 0 ? "buy" : rulePassedObservation > 0 ? "observe" : "none";
   const sourceText = String(state.source || state.fallbackProvider || "券商即時報價");
   const errorHtml = state.error
     ? `<div class="alert-message radar-aux intraday-discovery-error">
@@ -4752,8 +4844,15 @@ function intradayMarketDiscoveryHtml(discovery) {
         <strong>${escapeHtml(String(state.error))}</strong>
       </div>`
     : "";
-  const rowsHtml = leaders.length
-    ? leaders.map((item) => {
+  const decisionRows = leaders
+    .map((item, index) => ({
+      item,
+      index,
+      decision: intradayDiscoveryBuyDecision(item, marketActive),
+    }))
+    .sort((a, b) => a.decision.priority - b.decision.priority || a.index - b.index);
+  const rowsHtml = decisionRows.length
+    ? decisionRows.map(({ item, decision }) => {
         const symbol = String(item.symbol || "");
         const name = String(item.name || symbol);
         const currentChange = Number(item.currentChangePct || 0);
@@ -4771,6 +4870,10 @@ function intradayMarketDiscoveryHtml(discovery) {
                 ${escapeHtml(`${symbol} ${name}`)}
               </button>
             </td>
+            <td class="intraday-discovery-decision-cell" title="${escapeHtml(decision.reason)}">
+              <span class="intraday-discovery-decision ${decision.key}">${escapeHtml(decision.label)}</span>
+              <small class="intraday-discovery-decision-reason">${escapeHtml(decision.reason)}</small>
+            </td>
             <td>${escapeHtml(String(item.sector || "上市櫃"))}</td>
             <td>${priceText(item.currentPrice)}</td>
             <td class="${currentChange >= 0 ? "up" : "down"}">${pct(currentChange)}</td>
@@ -4782,15 +4885,15 @@ function intradayMarketDiscoveryHtml(discovery) {
             <td><span class="intraday-discovery-source ${item.inRadar ? "existing" : "new"}">${item.inRadar ? "原雷達" : "盤中新候選"}</span></td>
           </tr>`;
       }).join("")
-    : `<tr><td colspan="8">${state.running ? "正在取得全市場即時報價" : "目前沒有符合量價條件的盤中新強勢股"}</td></tr>`;
+    : `<tr><td colspan="9">${state.running ? "正在取得全市場即時報價" : "目前沒有符合量價條件的盤中新強勢股"}</td></tr>`;
   return `
     <section class="intraday-discovery-section" aria-label="盤中全市場強勢掃描">
       <div class="intraday-discovery-head">
         <div>
           <h3 class="table-title">盤中全市場新強勢</h3>
-          <p class="section-note">${escapeHtml(statusText)}｜本輪報價 ${escapeHtml(coverage)}｜召回 ${fmt(qualified, 0)}｜兩輪確認 ${fmt(confirmed, 0)}｜紙上訊號 ${fmt(candidateSignals, 0)}｜正式可買 ${fmt(formalBuyable, 0)}｜${escapeHtml(sourceText)}</p>
+          <p class="section-note">${escapeHtml(statusText)}｜本輪報價 ${escapeHtml(coverage)}｜召回 ${fmt(qualified, 0)}｜兩輪確認 ${fmt(confirmed, 0)}｜紙上訊號 ${fmt(candidateSignals, 0)}｜規則通過待驗證 ${fmt(rulePassedObservation, 0)}｜正式可買 ${fmt(currentFormalBuyable, 0)}｜${escapeHtml(sourceText)}</p>
         </div>
-        <span class="intraday-discovery-observe">盤中新候選</span>
+        <span class="intraday-discovery-observe intraday-discovery-summary ${summaryTone}">${escapeHtml(summaryLabel)}</span>
       </div>
       ${errorHtml}
       <div class="feature-table-wrap intraday-discovery-table-wrap">
@@ -4798,6 +4901,7 @@ function intradayMarketDiscoveryHtml(discovery) {
           <thead>
             <tr>
               <th>股票</th>
+              <th>買進判定</th>
               <th>產業</th>
               <th>現價</th>
               <th>目前漲幅</th>
@@ -4817,8 +4921,11 @@ function renderMonsterRadar() {
   const container = document.getElementById("monsterList");
   if (!container) return;
   resetDecisionTraceScope("monster");
+  const isMobileRadarView = window.matchMedia("(max-width: 720px)").matches;
+  // 手機維持既有的嚴格妖股名單；桌面預設改為短線機會，並可切回 surgeSetup。
+  const radarViewMode = isMobileRadarView ? "surge" : readRadarViewMode();
   const allBackendRows = monsterBackendState.payload?.candidates || [];
-  const backendCandidates = backendMonsterCandidates();
+  const backendCandidates = backendMonsterCandidates(radarViewMode);
   const hasBackendScan = Boolean(monsterBackendState.payload?.candidates?.length);
   const usingBackend = backendCandidates.length > 0;
   const health = intradayHealth(monsterIntradayState);
@@ -4881,9 +4988,11 @@ function renderMonsterRadar() {
   // 使用者要求「妖股雷達只顯示可買的」(2026-07-08)：名單只列通過盤中確認的「可買」標的
   // (桌面列全部可買、手機取前 10)。0 檔可買時不留空白,改在名單區顯示「0 檔可買/X 檔觀察中」
   // 的清楚訊息(避免看起來像壞掉)——觀察檔數與掃描統計仍在上方摘要卡看得到。
-  const isMobileRadarView = window.matchMedia("(max-width: 720px)").matches;
   const deploymentReadiness = monsterBackendState.payload?.deploymentReadiness || {};
-  const radarListTitle = isMobileRadarView ? "妖股買進觀察名單" : "完整妖股型態名單";
+  const radarListTitle = isMobileRadarView
+    ? "妖股買進觀察名單"
+    : radarViewMode === "surge" ? "完整妖股型態名單" : "短線機會名單";
+  const radarViewControlHtml = isMobileRadarView ? "" : radarViewModeControlHtml(radarViewMode);
   const radarDecisionColumnTitle = isMobileRadarView ? "能不能買" : "盤中狀態";
   const desktopReadinessHtml = !isMobileRadarView && deploymentReadiness.formalReady !== true
     ? `<div class="alert-message radar-aux radar-observation-banner">
@@ -4892,7 +5001,9 @@ function renderMonsterRadar() {
       </div>`
     : "";
   const desktopDiscoveryHtml = !isMobileRadarView
-    ? intradayMarketDiscoveryHtml(monsterIntradayState?.marketDiscovery)
+    ? intradayMarketDiscoveryHtml(monsterIntradayState?.marketDiscovery, {
+        marketActive: monsterIntradayState?.active === true,
+      })
     : "";
   const buyableRows = visibleRows.filter((row) => row.canBuy);
   const observeOnlyCount = visibleRows.length - buyableRows.length;
@@ -4921,19 +5032,21 @@ function renderMonsterRadar() {
     : "盤中確認：尚未更新即時報價";
   const summaryHtml = scanSummaryCards(candidates, {
     scannedCount: Number(monsterBackendState.payload?.universeTotal || allBackendRows.length),
-    strengtheningCount: backendCandidates.length,
-    watchCount: candidates.length,
+    opportunityCount: allBackendRows.filter(isShortOpportunityCandidate).length,
+    surgeCount: allBackendRows.filter(isShortMonsterCandidate).length,
     buyCount: trueBuyCount
   });
   const sourceText = usingBackend
     ? `後端快速掃描：${monsterBackendState.payload?.scanDate || "最新"}，全市場 ${fmt(monsterBackendState.payload?.universeTotal || 0, 0)} 檔 → 流動性候選 ${fmt(monsterBackendState.payload?.liquidUniverse || monsterBackendState.payload?.scanned || 0, 0)} 檔 → 快速候選 ${fmt(monsterBackendState.payload?.quickCandidates || 0, 0)} 檔 → 純規則評分 ${fmt(monsterBackendState.payload?.scoredCandidates ?? 0, 0)} 檔；模型獨立運行，不進候選`
     : hasBackendScan
-      ? `後端全市場掃描：${monsterBackendState.payload?.scanDate || "最新"}，目前沒有符合 surgeSetup 的完整妖股型態`
+      ? radarViewMode === "surge"
+        ? `後端全市場掃描：${monsterBackendState.payload?.scanDate || "最新"}，目前沒有符合 surgeSetup 的完整妖股型態`
+        : `後端全市場掃描：${monsterBackendState.payload?.scanDate || "最新"}，目前沒有通過風險過濾的短線機會`
     : monsterBackendState.loading && !monsterBackendState.payload
       ? "正在讀取後端全市場掃描結果..."
       : monsterBackendState.error
         ? `後端掃描結果讀取失敗：${monsterBackendState.error}`
-        : "目前沒有符合 surgeSetup 的完整妖股型態。需要準備短線按「手動掃描短線妖股」。";
+        : "目前沒有短線機會資料。需要更新時按「手動掃描短線機會」。";
   const hotSectors = monsterBackendState.payload?.hotSectors || [];
   const marketRegime = monsterBackendState.payload?.marketRegime || {};
   const themeSnapshot = monsterBackendState.payload?.themeSnapshot || {};
@@ -4974,7 +5087,7 @@ function renderMonsterRadar() {
       ` : ""}
       ${desktopReadinessHtml}
       ${desktopDiscoveryHtml}
-      <h3 class="table-title radar-list-title">${radarListTitle}${priceCapInputHtml}</h3>
+      <h3 class="table-title radar-list-title"><span>${radarListTitle}</span>${radarViewControlHtml}${priceCapInputHtml}</h3>
       <div class="feature-table-wrap portfolio-table-wrap monster-candidate-table-wrap">
         <table class="portfolio-table monster-table entry-decision-table">
           <thead>
@@ -5030,7 +5143,7 @@ function renderMonsterRadar() {
                   >
                     ${stockLabel(item.stock)}
                   </button>
-                  ${tenureBadgeText(item)}${bigMoverBadge(item)}${monsterRiskBadges(item)}
+                  ${item.surgeSetup ? '<span class="surge-setup-tag">妖股型態</span>' : ""}${tenureBadgeText(item)}${bigMoverBadge(item)}${monsterRiskBadges(item)}
                 </td>
                 <td>${fmt(item.score, 1)}</td>
                 <td>${escapeHtml(item.stock.sector || "-")}${item.sectorHot ? '<span class="sector-hot-tag">熱門</span>' : ""}${item.themeHeat > 0 ? `<span class="sector-hot-tag" title="題材熱度由入選家數、成交金額占比、5/20日超額報酬與持續日數計算">${fmt(item.themeHeat, 0)}｜${fmt(item.sectorThemeStreak, 0)}日</span>` : ""}</td>
@@ -5050,17 +5163,17 @@ function renderMonsterRadar() {
         </table>
       </div>
       <p class="section-note radar-live-status">${intradayText}</p>
-      <p class="section-note">妖股流程：09:05 初篩，09:15 看量能，09:30-10:00 初次確認，10:00-13:15 只看低接/V轉，13:15 後不再進場。目前階段：${taiwanBuyFlowStage().label}。</p>
-      <p class="section-note">排序方式：全市場先用資料庫 SQL 篩出流動性候選，再用成交金額、量能放大、強於大盤、逆勢創高建立快速候選，最後只顯示已形成 surgeSetup 的完整妖股型態。模型獨立運行，不加入妖股候選、排序或買賣；未通過真實盤中報價確認前只列觀察。</p>
+      <p class="section-note">短線流程：09:05 初篩，09:15 看量能，09:30-10:00 初次確認，10:00-13:15 只看低接/V轉，13:15 後不再進場。目前階段：${taiwanBuyFlowStage().label}。</p>
+      <p class="section-note">排序方式：全市場先篩流動性與短線強勢，再排除過熱及風險否決標的，依正式規則分數與量能排序；surgeSetup 以「妖股型態」標示，也可用上方切換只看完整型態。模型獨立運行，不加入候選、排序或買賣；未通過真實盤中報價確認前只列觀察。</p>
     `
     : `${summaryHtml}
       ${desktopReadinessHtml}
       ${desktopDiscoveryHtml}
-      <h3 class="table-title radar-list-title">${radarListTitle}${priceCapInputHtml}</h3>
+      <h3 class="table-title radar-list-title"><span>${radarListTitle}</span>${radarViewControlHtml}${priceCapInputHtml}</h3>
       <div class="alert-message"><span>${sourceText}</span><strong>${
         hiddenByPriceCount
           ? `全部 ${hiddenByPriceCount} 檔候選一張都超過預算 ${fmt(radarLotBudget, 0)} 元，調高預算即可顯示`
-          : "目前沒有通過條件的妖股或持股觀察"
+          : radarViewMode === "surge" ? "目前沒有完整妖股型態" : "目前沒有通過風險過濾的短線機會"
       }</strong></div>`;
   // 內容跟上次寫進 DOM 的一模一樣就直接跳過:掃描時每秒輪詢、盤中每 30 秒更新都會呼叫
   // 本函式,#monsterList 沒有自身捲軸(整頁在捲),innerHTML 重建會把頁面捲回最上面。
@@ -5108,6 +5221,14 @@ document.addEventListener("change", (event) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ radarLotBudget: Number(normalized) }),
   }).catch(() => {});
+});
+
+document.addEventListener("click", (event) => {
+  const button = event.target?.closest?.("[data-radar-view-mode]");
+  if (!button) return;
+  const mode = button.dataset.radarViewMode === "surge" ? "surge" : "opportunity";
+  safeSetItem(RADAR_VIEW_MODE_STORAGE_KEY, mode);
+  renderMonsterRadar();
 });
 
 

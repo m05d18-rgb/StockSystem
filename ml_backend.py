@@ -38,11 +38,17 @@ except Exception:
 
 try:
     import numpy as np
-    from sklearn.ensemble import GradientBoostingRegressor, HistGradientBoostingClassifier, IsolationForest
+    from sklearn.ensemble import (
+        GradientBoostingRegressor,
+        HistGradientBoostingClassifier,
+        HistGradientBoostingRegressor,
+        IsolationForest,
+    )
 except Exception:
     np = None
     GradientBoostingRegressor = None
     HistGradientBoostingClassifier = None
+    HistGradientBoostingRegressor = None
     IsolationForest = None
 
 try:
@@ -1261,6 +1267,37 @@ FEATURE_NAMES = [
     "margin_delta_flow",
     "daytrade_imbalance",
 ]
+
+
+def short_profit_policy_spec(symbols, threshold):
+    """完整策略身分：目標、特徵、成本、門檻、母體與排序契約缺一不可。"""
+    return {
+        "target": SHORT_PROFIT_POLICY,
+        "targetPolicyHash": SHORT_PROFIT_POLICY_HASH,
+        "featureNames": list(FEATURE_NAMES),
+        "threshold": round(float(threshold), 8),
+        "symbols": sorted({str(symbol) for symbol in (symbols or []) if str(symbol)}),
+        "modelType": "ensemble-logistic-xgboost-lightgbm-isolation-rank",
+        "selectionGate": {
+            "expectedNetReturn": ">0",
+            "riskAdjustedExpectedReturn": ">0",
+            "allHorizonModelsRequired": True,
+            "monsterSetupRequired": False,
+        },
+        "scoreWeights": {
+            "winModels": 0.44,
+            "learningToRank": 0.34,
+            "isolationForest": 0.14,
+            "setupAdjustment": 0.08,
+        },
+    }
+
+
+def short_profit_policy_hash(symbols, threshold):
+    spec = short_profit_policy_spec(symbols, threshold)
+    return hashlib.sha256(
+        json.dumps(spec, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:16]
 
 MARKET_SOURCES = [
     ("TAIEX", "^TWII", "加權指數 TAIEX"),
@@ -12512,17 +12549,44 @@ class StockMLBackend:
         positive_count = sum(row["y"] for row in train)
         negative_count = max(len(train) - positive_count, 1)
         positive_weight = clamp(negative_count / max(positive_count, 1), 1.0, 6.0)
-        for _ in range(260):
-            gradient = [0.0] * (feature_count + 1)
-            for x, row in zip(train_x, train):
-                pred = sigmoid(weights[0] + sum(x[i] * weights[i + 1] for i in range(feature_count)))
-                sample_weight = (positive_weight if row["y"] else 1.0) * (1 + min(float(row.get("target_strength") or 0), 5) * 0.15)
-                error = (pred - row["y"]) * sample_weight
-                gradient[0] += error
-                for i in range(feature_count):
-                    gradient[i + 1] += error * x[i] + l2 * weights[i + 1]
-            for i in range(len(weights)):
-                weights[i] -= learning_rate * gradient[i] / len(train)
+        if np is not None:
+            train_matrix = np.asarray(train_x, dtype=float)
+            train_labels = np.asarray([row["y"] for row in train], dtype=float)
+            logistic_sample_weights = np.asarray([
+                (positive_weight if row["y"] else 1.0)
+                * (1 + min(float(row.get("target_strength") or 0), 5) * 0.15)
+                for row in train
+            ], dtype=float)
+            np_weights = np.zeros(feature_count + 1, dtype=float)
+            for _ in range(260):
+                logits = np_weights[0] + train_matrix @ np_weights[1:]
+                probabilities = 1.0 / (1.0 + np.exp(-np.clip(logits, -35, 35)))
+                errors = (probabilities - train_labels) * logistic_sample_weights
+                bias_gradient = float(np.mean(errors))
+                feature_gradient = (
+                    train_matrix.T @ errors / len(train)
+                    + l2 * np_weights[1:]
+                )
+                np_weights[0] -= learning_rate * bias_gradient
+                np_weights[1:] -= learning_rate * feature_gradient
+            weights = np_weights.tolist()
+        else:
+            for _ in range(260):
+                gradient = [0.0] * (feature_count + 1)
+                for x, row in zip(train_x, train):
+                    pred = sigmoid(weights[0] + sum(
+                        x[i] * weights[i + 1] for i in range(feature_count)
+                    ))
+                    sample_weight = (
+                        (positive_weight if row["y"] else 1.0)
+                        * (1 + min(float(row.get("target_strength") or 0), 5) * 0.15)
+                    )
+                    error = (pred - row["y"]) * sample_weight
+                    gradient[0] += error
+                    for i in range(feature_count):
+                        gradient[i + 1] += error * x[i] + l2 * weights[i + 1]
+                for i in range(len(weights)):
+                    weights[i] -= learning_rate * gradient[i] / len(train)
 
         predictions = []
         for row in validation:
@@ -12544,11 +12608,14 @@ class StockMLBackend:
         training_sample_dates = [
             str(item.get("date") or "")[:10] for item in samples if item.get("date")
         ]
+        policy_spec = short_profit_policy_spec(symbols, threshold)
         model = {
             "version": now_text().replace(" ", "T"),
             "model_type": "ensemble-logistic-xgboost-lightgbm-isolation-rank",
             "target_type": SHORT_PROFIT_TARGET_TYPE,
-            "policy_hash": SHORT_PROFIT_POLICY_HASH,
+            "policy_hash": short_profit_policy_hash(symbols, threshold),
+            "target_policy_hash": SHORT_PROFIT_POLICY_HASH,
+            "policy_spec": policy_spec,
             "target_spec": {
                 **SHORT_PROFIT_POLICY,
                 "entry": "next-day open + slippage 0.1% + commission",
@@ -12677,6 +12744,10 @@ class StockMLBackend:
         train_x = np.array([normalize(row["x"]) for row in train], dtype=float)
         train_y = np.array([row["y"] for row in train], dtype=int)
         train_returns = np.array([row.get("expected_return", row["future_return"]) for row in train], dtype=float)
+        validation_returns = np.array([
+            row.get("expected_return", row["future_return"])
+            for row in validation
+        ], dtype=float)
         sample_weights = np.array([
             (positive_weight if row["y"] else 1.0) * (1 + min(float(row.get("target_strength") or 0), 5) * 0.15)
             for row in train
@@ -12802,31 +12873,44 @@ class StockMLBackend:
             except Exception as exc:
                 output["isolation_forest_error"] = str(exc)
 
-        if GradientBoostingRegressor is not None:
+        if GradientBoostingRegressor is not None or HistGradientBoostingRegressor is not None:
             try:
-                ranker = GradientBoostingRegressor(
-                    n_estimators=180,
-                    learning_rate=0.045,
-                    max_depth=3,
-                    random_state=42,
-                )
+                if HistGradientBoostingRegressor is not None:
+                    ranker = HistGradientBoostingRegressor(
+                        max_iter=180,
+                        learning_rate=0.045,
+                        max_leaf_nodes=15,
+                        l2_regularization=0.05,
+                        random_state=42,
+                    )
+                else:
+                    ranker = GradientBoostingRegressor(
+                        n_estimators=180,
+                        learning_rate=0.045,
+                        max_depth=3,
+                        random_state=42,
+                    )
                 ranker.fit(train_x, train_returns, sample_weight=sample_weights)
                 train_pred = ranker.predict(train_x)
                 val_pred = ranker.predict(validation_x)
                 sorted_train = sorted(float(value) for value in train_pred)
                 probabilities = [self.rank_probability(float(value), sorted_train) for value in val_pred]
                 predictions = [{**row, "probability": float(prob)} for row, prob in zip(validation, probabilities)]
+                # 用殘差中位數做穩健截距校正；平均殘差會被少數妖股極端報酬
+                # 拉動，實測反而使各週期 MAE 變差。
+                bias_correction = float(np.median(validation_returns - val_pred))
                 output["learning_to_rank"] = {
                     "name": "Learning to Rank 排名模型",
                     "estimator": ranker,
                     "calibration": sorted_train,
+                    "bias_correction": bias_correction,
                     "metrics": self.score_metrics(predictions, threshold=threshold),
                 }
                 output["models"].append(output["learning_to_rank"]["name"])
             except Exception as exc:
                 output["learning_to_rank_error"] = str(exc)
 
-        if GradientBoostingRegressor is not None:
+        if GradientBoostingRegressor is not None or HistGradientBoostingRegressor is not None:
             output["short_horizon_returns"] = {}
             for horizon in SHORT_PROFIT_HORIZONS:
                 key = f"net_return_{horizon}d"
@@ -12837,25 +12921,39 @@ class StockMLBackend:
                     validation_target = np.array(
                         [float(row[key]) for row in validation], dtype=float,
                     )
-                    regressor = GradientBoostingRegressor(
-                        n_estimators=160,
-                        learning_rate=0.045,
-                        max_depth=3,
-                        loss="huber",
-                        random_state=42 + horizon,
-                    )
+                    if HistGradientBoostingRegressor is not None:
+                        regressor = HistGradientBoostingRegressor(
+                            max_iter=160,
+                            learning_rate=0.045,
+                            max_leaf_nodes=15,
+                            l2_regularization=0.05,
+                            random_state=42 + horizon,
+                        )
+                    else:
+                        regressor = GradientBoostingRegressor(
+                            n_estimators=160,
+                            learning_rate=0.045,
+                            max_depth=3,
+                            loss="huber",
+                            random_state=42 + horizon,
+                        )
                     # 週期報酬回歸不套分類正例權重，避免預測值被系統性往上推。
                     regressor.fit(train_x, train_target)
                     predicted = regressor.predict(validation_x)
-                    mae = float(np.mean(np.abs(predicted - validation_target)))
+                    bias_correction = float(np.median(validation_target - predicted))
+                    calibrated_predicted = predicted + bias_correction
+                    mae = float(np.mean(np.abs(calibrated_predicted - validation_target)))
                     horizon_model = {
                         "name": f"{horizon} 日淨報酬回歸",
                         "estimator": regressor,
                         "metrics": {
                             "mae": mae,
-                            "averagePredictedReturn": float(np.mean(predicted)),
+                            "rawMae": float(np.mean(np.abs(predicted - validation_target))),
+                            "biasCorrection": bias_correction,
+                            "averagePredictedReturn": float(np.mean(calibrated_predicted)),
                             "averageActualReturn": float(np.mean(validation_target)),
                         },
+                        "bias_correction": bias_correction,
                     }
                     output["short_horizon_returns"][str(horizon)] = horizon_model
                     output["models"].append(horizon_model["name"])
@@ -12946,9 +13044,13 @@ class StockMLBackend:
         ranker = extra.get("learning_to_rank") or {}
         if ranker.get("estimator") is not None:
             try:
-                predicted_return = float(ranker["estimator"].predict(arr)[0])
-                probabilities["learning_to_rank"] = self.rank_probability(predicted_return, ranker.get("calibration") or [])
-                probabilities["rank_predicted_return"] = predicted_return
+                raw_predicted_return = float(ranker["estimator"].predict(arr)[0])
+                probabilities["learning_to_rank"] = self.rank_probability(
+                    raw_predicted_return, ranker.get("calibration") or [],
+                )
+                probabilities["rank_predicted_return"] = (
+                    raw_predicted_return + float(ranker.get("bias_correction") or 0)
+                )
             except Exception:
                 pass
         for horizon, horizon_model in (
@@ -12959,7 +13061,7 @@ class StockMLBackend:
             try:
                 probabilities[f"predicted_return_{int(horizon)}d"] = float(
                     horizon_model["estimator"].predict(arr)[0]
-                )
+                ) + float(horizon_model.get("bias_correction") or 0)
             except Exception:
                 pass
         return probabilities
@@ -13911,8 +14013,8 @@ class StockMLBackend:
 
     def sync_model_prediction_signals(self, price_date=None, max_per_day=PAPER_MAX_OPEN_POSITIONS):
         """把模型自己的 BUY_CANDIDATE 轉成獨立紙上訊號，不讀妖股候選。"""
-        where = "WHERE action = 'BUY_CANDIDATE'"
-        params = []
+        where = "WHERE action = 'BUY_CANDIDATE' AND target_type = ?"
+        params = [SHORT_PROFIT_TARGET_TYPE]
         if price_date:
             where += " AND price_date = ?"
             params.append(str(price_date)[:10])
@@ -13920,7 +14022,7 @@ class StockMLBackend:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(f"""
                 SELECT created_at, symbol, price_date, model_version,
-                       probability, threshold, action, close
+                       probability, threshold, action, target_type, close
                 FROM predictions
                 {where}
                 ORDER BY price_date ASC, symbol ASC, created_at DESC
@@ -13966,29 +14068,30 @@ class StockMLBackend:
                 threshold = float(row["threshold"] or 0)
                 self.save_strategy_signal(conn, {
                     "signalDate": str(row["price_date"] or "")[:10],
-                    "strategy": "model_ensemble_10d",
+                    "strategy": "model_short_profit_3_5_10d",
                     "side": "BUY_CANDIDATE",
                     "symbol": str(row["symbol"] or ""),
                     "name": names.get(str(row["symbol"] or ""), ""),
-                    "decision": "模型獨立買進候選",
+                    "decision": "短期淨獲利模型候選",
                     "score": probability * 100,
                     "modelVersion": row["model_version"],
                     "price": close,
                     "buyPoint": close,
-                    "stopPrice": close * 0.92,
-                    "targetPrice": close * 1.10,
-                    "tradeHorizon": "model_10d",
-                    "tradeHorizonLabel": "模型 10 日",
-                    "tradeHorizonDays": "10",
+                    "stopPrice": close * 0.93,
+                    "targetPrice": None,
+                    "tradeHorizon": "model_short_profit",
+                    "tradeHorizonLabel": "模型 3／5／10 日淨獲利",
+                    "tradeHorizonDays": "3,5,10",
                     "tradeHorizonScore": probability * 100,
                     "dataDate": str(row["price_date"] or "")[:10],
                     "dataSource": "正式 predictions 表",
-                    "decisionSource": "正式 ensemble 模型獨立紙上訊號（不使用妖股候選）",
+                    "decisionSource": "短期淨獲利 ensemble 模型獨立紙上訊號（不使用妖股候選）",
                     "evidence": {
                         "scope": "independent_model",
                         "probability": probability,
                         "threshold": threshold,
                         "action": row["action"],
+                        "targetType": row["target_type"],
                         "selection": f"當日模型 BUY_CANDIDATE 前 {max_per_day} 名",
                     },
                 })
@@ -14683,6 +14786,7 @@ class StockMLBackend:
             "targetType": model.get("target_type"),
             "targetSpec": model.get("target_spec"),
             "policyHash": model.get("policy_hash"),
+            "targetPolicyHash": model.get("target_policy_hash"),
             "dataPolicy": model.get("data_policy"),
             "trainedAt": model.get("trained_at"),
             "trainingDataMaxDate": model.get("training_data_max_date"),

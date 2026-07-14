@@ -343,6 +343,24 @@ class CalibratedProbabilityTests(unittest.TestCase):
         self.assertAlmostEqual(probs["predicted_return_5d"], 0.02)
         self.assertAlmostEqual(probs["predicted_return_10d"], 0.03)
 
+    def test_short_horizon_and_rank_returns_apply_validation_bias_correction(self):
+        model = self._fake_model()
+        model["extra_models"]["learning_to_rank"] = {
+            "estimator": self._FakeRegressor(-0.02),
+            "calibration": [-0.03, -0.02, -0.01],
+            "bias_correction": 0.025,
+        }
+        model["extra_models"]["short_horizon_returns"] = {
+            "3": {"estimator": self._FakeRegressor(-0.01), "bias_correction": 0.02},
+        }
+
+        probs = backend.extra_model_probabilities(
+            model, [0.0] * len(FEATURE_NAMES_STUB),
+        )
+
+        self.assertAlmostEqual(probs["rank_predicted_return"], 0.005)
+        self.assertAlmostEqual(probs["predicted_return_3d"], 0.01)
+
 
 class PriceScaleIsPlausibleTests(unittest.TestCase):
     """對應 6919 等股票的跳空調查發現：補 FinMind 單日壞資料時，如果 Yahoo
